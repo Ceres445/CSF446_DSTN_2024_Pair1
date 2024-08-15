@@ -736,6 +736,9 @@ class Disk:
             trackList = self.DoSSTF(self.requestQueue[0 : self.GetWindow()])
             # then, do SATF on those blocks (otherwise, will not do them in obvious order)
             (self.currentBlock, self.currentIndex) = self.DoSATF(trackList)
+        elif self.policy == 'CLOOK':
+            trackList= self.DoCLOOK(self.requestQueue[:self.GetWindow()])
+            self.currentBlock, self.currentIndex = trackList[0]
         else:
             print("policy (%s) not implemented" % self.policy)
             sys.exit(1)
@@ -747,6 +750,32 @@ class Disk:
         if len(self.lateRequests) > 0 and self.lateCount < len(self.lateRequests):
             self.AddRequest(self.lateRequests[self.lateCount])
             self.lateCount += 1
+
+    def DoCLOOK(self, rList):
+        current_track = self.armTrack
+
+        greater = []
+        lesser = []
+
+        for block, index in rList:
+            if self.requestState[index] == STATE_DONE:
+                continue
+
+            if self.initialDir == 1:
+                if self.blockToTrackMap[block] >= current_track:
+                    greater.append((block, index))
+                else:
+                    lesser.append((block, index))
+            else:
+                if self.blockToTrackMap[block] <= current_track:
+                    greater.append((block, index))
+                else:
+                    lesser.append((block, index))
+
+        greater.sort(key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0)
+        lesser.sort(key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0)
+
+        return greater + lesser
 
     def Animate(self):
         if self.graphics == True and self.doAnimate == False:
