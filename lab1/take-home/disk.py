@@ -737,8 +737,7 @@ class Disk:
             # then, do SATF on those blocks (otherwise, will not do them in obvious order)
             (self.currentBlock, self.currentIndex) = self.DoSATF(trackList)
         elif self.policy == 'CLOOK':
-            trackList= self.DoCLOOK(self.requestQueue[:self.GetWindow()])
-            self.currentBlock, self.currentIndex = trackList[0]
+            self.currentBlock, self.currentIndex = self.DoCLOOK(self.requestQueue[:self.GetWindow()])
         else:
             print("policy (%s) not implemented" % self.policy)
             sys.exit(1)
@@ -754,28 +753,16 @@ class Disk:
     def DoCLOOK(self, rList):
         current_track = self.armTrack
 
-        greater = []
-        lesser = []
+        rListPending = [(block, index) for block, index in rList if self.requestState[index] != STATE_DONE]
+        rListPending.sort(key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0)
 
-        for block, index in rList:
-            if self.requestState[index] == STATE_DONE:
-                continue
-
-            if self.initialDir == 1:
-                if self.blockToTrackMap[block] >= current_track:
-                    greater.append((block, index))
-                else:
-                    lesser.append((block, index))
-            else:
-                if self.blockToTrackMap[block] <= current_track:
-                    greater.append((block, index))
-                else:
-                    lesser.append((block, index))
-
-        greater.sort(key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0)
-        lesser.sort(key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0)
-
-        return greater + lesser
+        for block, index in rListPending:
+            forwardCondtiton = (self.initialDir == 1 and self.blockToTrackMap[block] >= current_track)
+            backwardCondition = (self.initialDir == 0 and self.blockToTrackMap[block] <= current_track)
+            if forwardCondtiton or backwardCondition:
+                return block, index
+        else:
+            return rListPending[0]
 
     def Animate(self):
         if self.graphics == True and self.doAnimate == False:
