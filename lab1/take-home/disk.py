@@ -736,8 +736,10 @@ class Disk:
             trackList = self.DoSSTF(self.requestQueue[0 : self.GetWindow()])
             # then, do SATF on those blocks (otherwise, will not do them in obvious order)
             (self.currentBlock, self.currentIndex) = self.DoSATF(trackList)
-        elif self.policy == 'CLOOK':
-            self.currentBlock, self.currentIndex = self.DoCLOOK(self.requestQueue[:self.GetWindow()])
+        elif self.policy == "CLOOK":
+            self.currentBlock, self.currentIndex = self.DoCLOOK(
+                self.requestQueue[: self.GetWindow()]
+            )
         else:
             print("policy (%s) not implemented" % self.policy)
             sys.exit(1)
@@ -753,12 +755,22 @@ class Disk:
     def DoCLOOK(self, rList):
         current_track = self.armTrack
 
-        rListPending = [(block, index) for block, index in rList if self.requestState[index] != STATE_DONE]
-        rListPending.sort(key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0)
+        rListPending = [
+            (block, index)
+            for block, index in rList
+            if self.requestState[index] != STATE_DONE
+        ]
+        rListPending.sort(
+            key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0
+        )
 
         for block, index in rListPending:
-            forwardCondtiton = (self.initialDir == 1 and self.blockToTrackMap[block] >= current_track)
-            backwardCondition = (self.initialDir == 0 and self.blockToTrackMap[block] <= current_track)
+            forwardCondtiton = (
+                self.initialDir == 1 and self.blockToTrackMap[block] >= current_track
+            )
+            backwardCondition = (
+                self.initialDir == 0 and self.blockToTrackMap[block] <= current_track
+            )
             if forwardCondtiton or backwardCondition:
                 return block, index
         else:
