@@ -767,17 +767,19 @@ class Disk:
             key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0
         )
 
-        # Why not make our code more complicated
         for block, index in rListPending:
+            # If it is going forward, then the track should be greater than or equal to the current track
             forwardCondtiton = (
                 self.initialDir == 1 and self.blockToTrackMap[block] >= current_track
             )
+
+            # If it is going backward, then the track should be less than or equal to the current track
             backwardCondition = (
                 self.initialDir == 0 and self.blockToTrackMap[block] <= current_track
             )
             if forwardCondtiton or backwardCondition:
                 return block, index
-        # This is what it actually does
+        # If no block is found in the direction of the head, then return the first block in the list
         else:
             return rListPending[0]
 
