@@ -755,15 +755,19 @@ class Disk:
     def DoCLOOK(self, rList):
         current_track = self.armTrack
 
+        # Remove completed requests
         rListPending = [
             (block, index)
             for block, index in rList
             if self.requestState[index] != STATE_DONE
         ]
+
+        # Sort the tracks in the direction the head is moving in
         rListPending.sort(
             key=lambda x: self.blockToTrackMap[x[0]], reverse=self.initialDir == 0
         )
 
+        # Why not make our code more complicated
         for block, index in rListPending:
             forwardCondtiton = (
                 self.initialDir == 1 and self.blockToTrackMap[block] >= current_track
@@ -773,6 +777,7 @@ class Disk:
             )
             if forwardCondtiton or backwardCondition:
                 return block, index
+        # This is what it actually does
         else:
             return rListPending[0]
 
