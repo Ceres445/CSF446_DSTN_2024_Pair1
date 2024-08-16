@@ -8,12 +8,15 @@ To test your solution:
 python test.py
 ```
 
+<<<<<<< HEAD
 To run the eval script:
 
 ```bash
 python autograde.py
 ```
 
+=======
+>>>>>>> bb95bc3 (Add lab1 in-lab)
 ## Question
 
 Add an implementation of the [$V(R)$](https://dl.acm.org/doi/pdf/10.1145/7351.8929) algorithm to [`disk.py`](disk.py)
