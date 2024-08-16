@@ -668,33 +668,19 @@ class Disk:
             if self.requestState[index] != STATE_DONE
         ]
 
-        if self.initialDir == 0:
+        if self.initialDir == 1:
             rListPending.sort(
-                key=lambda x: self.blockToTrackMap[x[0]] if self.blockToTrackMap[x[0]] >= self.armTrack else self.blockToTrackMap[x[0]] + (self.rValue * self.numTracks)
+                key=lambda x: abs(self.blockToTrackMap[x[0]] - self.armTrack) if self.blockToTrackMap[x[0]] >= self.armTrack else (abs(self.blockToTrackMap[x[0]] - self.armTrack) + (self.rValue * self.numTracks))
             )
         else:
+            
             rListPending.sort(
-                key=lambda x: self.blockToTrackMap[x[0]] if self.blockToTrackMap[x[0]] <= self.armTrack else self.blockToTrackMap[x[0]] + (self.rValue * self.numTracks)
+                key=lambda x: abs(self.blockToTrackMap[x[0]] - self.armTrack) if self.blockToTrackMap[x[0]] <= self.armTrack else (abs(self.blockToTrackMap[x[0]] - self.armTrack) + (self.rValue * self.numTracks))
             )
 
         return rListPending[0]
 
-        # Sort the tracks in the direction the head is moving in
-        def sorter(x):
-            if (self.blockToTrackMap[x[0]] >= self.armTrack):
-                if self.initialDir:
-                    return x
-                else: 
-                    return x + self.rValue * self.numTracks
-            else: 
-                if not self.initialDir:
-                    return x + self.rValue * self.numTracks
-                else: 
-                    return x
         
-
-        
-
 
     def GetNextIO(self):
         # check if done: if so, print stats and end animation
