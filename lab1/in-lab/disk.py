@@ -35,7 +35,6 @@ STATE_XFER = 3
 STATE_DONE = 4
 
 
-
 class Disk:
     def __init__(
         self,
@@ -376,7 +375,6 @@ class Disk:
         for i in self.blockToAngleMap:
             self.blockToAngleMap[i] = (self.blockToAngleMap[i] + 180) % 360
 
-
     def InitTrack(self, angleOffset, pblock, skew, track):
         block = 0
         for angle in range(0, 360, angleOffset):
@@ -662,6 +660,42 @@ class Disk:
             else:
                 return self.currWindow
 
+    def DoVR(self, rList):
+        # Remove done requests
+        rListPending = [
+            (block, index)
+            for block, index in rList
+            if self.requestState[index] != STATE_DONE
+        ]
+
+        if self.initialDir == 0:
+            rListPending.sort(
+                key=lambda x: self.blockToTrackMap[x[0]] if self.blockToTrackMap[x[0]] >= self.armTrack else self.blockToTrackMap[x[0]] + (self.rValue * self.numTracks)
+            )
+        else:
+            rListPending.sort(
+                key=lambda x: self.blockToTrackMap[x[0]] if self.blockToTrackMap[x[0]] <= self.armTrack else self.blockToTrackMap[x[0]] + (self.rValue * self.numTracks)
+            )
+
+        return rListPending[0]
+
+        # Sort the tracks in the direction the head is moving in
+        def sorter(x):
+            if (self.blockToTrackMap[x[0]] >= self.armTrack):
+                if self.initialDir:
+                    return x
+                else: 
+                    return x + self.rValue * self.numTracks
+            else: 
+                if not self.initialDir:
+                    return x + self.rValue * self.numTracks
+                else: 
+                    return x
+        
+
+        
+
+
     def GetNextIO(self):
         # check if done: if so, print stats and end animation
         if self.requestCount == len(self.requestQueue):
@@ -688,6 +722,10 @@ class Disk:
             # first, find all the blocks on a given track (given window constraints)
             trackList = self.DoSSTF(self.requestQueue[0 : self.GetWindow()])
             (self.currentBlock, self.currentIndex) = trackList[0]
+        elif self.policy == "VR":
+            (self.currentBlock, self.currentIndex) = self.DoVR(
+                self.requestQueue[0 : self.GetWindow()]
+            )
         else:
             print("policy (%s) not implemented" % self.policy)
             sys.exit(1)
