@@ -14,6 +14,7 @@ Ls::Ls() : a_(false), l_(false), R_(false), h_(false) {}
 Ls::Ls(bool a, bool l, bool R, bool h)
     : a_(a), l_(l), R_(R), h_(h) {}
 
+// Do NOT change this method
 void Ls::Print(const StringMatrix &strings)
 {
   for (const auto &row : strings)
@@ -21,7 +22,7 @@ void Ls::Print(const StringMatrix &strings)
     for (size_t i = 0; i < row.size(); ++i)
     {
       std::cout << row[i];
-      if (i != row.size() - 1)
+      if (i != row.size() - 1) // Skip space after the last element
         std::cout << " ";
     }
     std::cout << std::endl;
@@ -73,12 +74,12 @@ Ls::StringMatrix Ls::Run(const std::string &path)
 
   for (const auto &name : entries)
   {
-    std::string relative_path = (name == "." || name == "..") ? path + "/" + name : path + "/" + name;
-
+    std::string relative_path = path + "/" + name;
     struct stat st;
+
     if (lstat(relative_path.c_str(), &st) == 0)
     {
-      if (h_ && st.st_nlink > 1 && !S_ISDIR(st.st_mode))
+      if (h_ && st.st_nlink > 1)
       {
         hardlinks[st.st_ino].push_back(relative_path);
       }
@@ -103,13 +104,13 @@ Ls::StringMatrix Ls::Run(const std::string &path)
 
   if (h_)
   {
-    for (auto &pair : hardlinks)
+    for (auto &[inode, paths] : hardlinks)
     {
-      std::vector<std::string> row = pair.second;
-      std::sort(row.begin(), row.end());
+      std::sort(paths.begin(), paths.end());
+      std::vector<std::string> row = paths;
       if (l_)
       {
-        row.push_back(getFileType(row[0]));
+        row.push_back(getFileType(paths[0]));
       }
       result.push_back(row);
     }
