@@ -1,14 +1,9 @@
-/*
-  FUSE: Filesystem in Userspace
-  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
-  Copyright (C) 2011       Sebastian Pipping <sebastian@pipping.org>
+#define FUSE_USE_VERSION 31
 
-  This program can be distributed under the terms of the GNU GPLv2.
-  See the file COPYING.
-*/
-
-#include "params.h"
-#include <fuse3/fuse.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <fuse.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
