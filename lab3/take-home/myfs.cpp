@@ -116,6 +116,41 @@ static int myfs_unlink(const char *path) {
         return -errno;
     }
 
+    // Get the inode index of the file
+    int inode_index = -1;
+    // use path_to_inode map to get the inode index
+    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end()) {
+        inode_index = MYFS_DATA->path_to_inode[path];
+    }
+
+    if (inode_index == -1) {
+        log_msg("ERROR: INODE NOT FOUND\n");
+        log_fuse_context();
+        return -1;
+    }
+
+    // free the data blocks of the file
+    for (int i = 0; i < MYFS_DATA->inodes[inode_index]->blocks.size(); i++) {
+        int block_index = MYFS_DATA->inodes[inode_index]->blocks[i];
+        MYFS_DATA->data_block_bitmap[block_index] = false;
+        // memset(MYFS_DATA->data_blocks[block_index]->data, 0,
+        // MYFS_DATA->DATA_BLOCK_SIZE);
+
+        // MYFS_DATA->data_blocks[block_index] = nullptr;
+
+        // strcpy(MYFS_DATA->data_blocks[block_index]->data, "");
+        // TODO: We need to delete properly, this is memsetting to 0, which is messing up diff
+        MYFS_DATA->data_blocks[block_index] =
+            new data_block(MYFS_DATA->DATA_BLOCK_SIZE);
+    }
+
+    // free the inode
+    MYFS_DATA->inode_bitmap[inode_index] = false;
+    MYFS_DATA->path_to_inode.erase(path);
+
+	// Clear the inode
+	MYFS_DATA->inodes[inode_index] = new inode();
+
     log_fuse_context();
 
     return 0;
@@ -128,6 +163,37 @@ static int myfs_create(const char *path, mode_t mode,
     myfs_fullpath(fpath, path);
 
     log_msg("CREATE %s\n", path);
+
+    // Add code to allocate an inode and data block for the new file
+    int inode_index = -1;
+
+    for (int i = 0; i < MYFS_DATA->NUM_INODES; i++) {
+        if (!MYFS_DATA->inode_bitmap[i]) {
+            inode_index = i;
+            break;
+        }
+    }
+
+    // for (int i = 0; i < MYFS_DATA->NUM_DATA_BLOCKS; i++) {
+    // 	if (MYFS_DATA->data_block_bitmap[i]) {
+    // 		data_block_index = i;
+    // 		break;
+    // 	}
+    // }
+
+    if (inode_index == -1) {
+        log_msg("ERROR: INODES FULL\n");
+        log_fuse_context();
+        return -1;
+    }
+
+    // MYFS_DATA->inodes[inode_index]->blocks.push_back(data_block_index);
+    // Update the inode bitmap and data block bitmap
+    MYFS_DATA->inode_bitmap[inode_index] = true;
+    // MYFS_DATA->data_block_bitmap[data_block_index] = false;
+
+    // Update the path to inode map
+    MYFS_DATA->path_to_inode[path] = inode_index;
 
     //    if (inodes full) {
     //    	log_msg("ERROR: INODES FULL\n");
@@ -175,6 +241,26 @@ static int myfs_read(const char *path, char *buf, size_t size, off_t offset,
         return -errno;
     }
 
+    // Get the inode index of the file
+    int inode_index = -1;
+    // use path_to_inode map to get the inode index
+    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end()) {
+        inode_index = MYFS_DATA->path_to_inode[path];
+    }
+
+    if (inode_index == -1) {
+        log_msg("ERROR: INODE NOT FOUND\n");
+        log_fuse_context();
+        return -1;
+    }
+
+    // read the data blocks of the file
+    for (int i = 0; i < MYFS_DATA->inodes[inode_index]->blocks.size(); i++) {
+        int block_index = MYFS_DATA->inodes[inode_index]->blocks[i];
+        log_msg("DATA BLOCK %d: %s\n", block_index,
+                MYFS_DATA->data_blocks[block_index]->data);
+    }
+
     if (fi == NULL)
         close(fd);
 
@@ -204,11 +290,62 @@ static int myfs_write(const char *path, const char *buf, size_t size,
         return -errno;
     }
 
-    //	if (Not enough data blocks) {
-    //		log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
-    //		log_fuse_context();
-    //		return -1;
-    //	}
+	int offt = 0;
+	// Try using the last data block if it exists
+	int inode_index = -1;
+	if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end()) {
+		inode_index = MYFS_DATA->path_to_inode[path];
+	}
+	if (inode_index == -1) {
+		log_msg("ERROR: INODE NOT FOUND\n");
+		log_fuse_context();
+		return -1;
+	}
+
+	if (MYFS_DATA->inodes[inode_index]->blocks.size() > 0) {
+		int last_block_index = MYFS_DATA->inodes[inode_index]->blocks.back();
+		if (MYFS_DATA->data_block_bitmap[last_block_index]) {
+			int remaining_space = MYFS_DATA->DATA_BLOCK_SIZE - strlen(MYFS_DATA->data_blocks[last_block_index]->data);
+			strncpy(MYFS_DATA->data_blocks[last_block_index]->data + strlen(MYFS_DATA->data_blocks[last_block_index]->data), buf + offt, remaining_space);
+			offt += remaining_space;
+		}
+	}
+	std::vector<int> to_use_blocks;
+
+	int num_blocks = (size - offt) / MYFS_DATA->DATA_BLOCK_SIZE + ((size - offt) % MYFS_DATA->DATA_BLOCK_SIZE > 0);
+	for (int i = 0; i < num_blocks; i++) {
+		int data_block_index = -1;
+		for (int j = 0; j < MYFS_DATA->NUM_DATA_BLOCKS; j++) {
+			if (!MYFS_DATA->data_block_bitmap[j]) {
+				data_block_index = j;
+				break;
+			}
+		}
+		if (data_block_index == -1) {
+			// Free the blocks we were supposed to use
+			for (int k = 0; k < to_use_blocks.size(); k++) {
+				MYFS_DATA->data_block_bitmap[to_use_blocks[k]] = false;
+			}
+			log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
+			log_fuse_context();
+
+			return -1;
+		}
+		to_use_blocks.push_back(data_block_index);
+		MYFS_DATA->data_block_bitmap[data_block_index] = true;
+	}
+	int current_block_index = 0;
+	while (current_block_index < to_use_blocks.size()) {
+		int data_block_index = to_use_blocks[current_block_index];
+    	MYFS_DATA->data_block_bitmap[data_block_index] = true;
+		strncpy(MYFS_DATA->data_blocks[data_block_index]->data, buf + offt, MYFS_DATA->DATA_BLOCK_SIZE);
+
+		// Add to the inode
+		MYFS_DATA->inodes[inode_index]->blocks.push_back(data_block_index);
+
+    	offt += MYFS_DATA->DATA_BLOCK_SIZE;
+		current_block_index++;
+    }
 
     res = pwrite(fd, buf, size, offset);
     if (res == -1) {
