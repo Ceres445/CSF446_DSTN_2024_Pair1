@@ -13,13 +13,15 @@
 #include <unistd.h>
 
 // DO NOT CHANGE
-FILE *log_open(char *file_name) {
+FILE *log_open(char *file_name)
+{
     FILE *logfile;
 
     // very first thing, open up the logfile and mark that we got in
     // here.  If we can't open the logfile, we're dead.
     logfile = fopen(file_name, "w");
-    if (logfile == NULL) {
+    if (logfile == NULL)
+    {
         perror("logfile");
         exit(EXIT_FAILURE);
     }
@@ -31,63 +33,75 @@ FILE *log_open(char *file_name) {
 }
 
 // DO NOT CHANGE
-void log_char(char c) {
+void log_char(char c)
+{
 
-	FILE* log_file = MYFS_DATA->logfile;
-	if (c == '\n') {
-		fprintf(log_file, "\\n");  // Prints the literal characters "\n"
-	} else {
-		fprintf(log_file, "%c", c);
-	}
+    FILE *log_file = MYFS_DATA->logfile;
+    if (c == '\n')
+    {
+        fprintf(log_file, "\\n"); // Prints the literal characters "\n"
+    }
+    else
+    {
+        fprintf(log_file, "%c", c);
+    }
 }
 
 // DO NOT CHANGE
 void log_fuse_context()
 {
-  struct myfs_state *myfs_data = MYFS_DATA;
-  FILE* log_file = myfs_data->logfile;
+    struct myfs_state *myfs_data = MYFS_DATA;
+    FILE *log_file = myfs_data->logfile;
 
     fprintf(log_file, "PATH_TO_INODE_MAP:\n");
-    for (auto const &x : myfs_data->path_to_inode) {
+    for (auto const &x : myfs_data->path_to_inode)
+    {
         fprintf(log_file, "%s: %d\n", x.first.c_str(), x.second);
     }
 
-  fprintf(log_file, "INODE_BITMAP: [");
-  for(int i = 0; i < myfs_data->NUM_INODES; ++i) {
-    bool b = myfs_data->inode_bitmap[i];
-    fprintf(log_file, "%d", b);
-    if (i != myfs_data->NUM_INODES - 1) {
-      fprintf(log_file, ", ");
+    fprintf(log_file, "INODE_BITMAP: [");
+    for (int i = 0; i < myfs_data->NUM_INODES; ++i)
+    {
+        bool b = myfs_data->inode_bitmap[i];
+        fprintf(log_file, "%d", b);
+        if (i != myfs_data->NUM_INODES - 1)
+        {
+            fprintf(log_file, ", ");
+        }
     }
-  }
-  fprintf(log_file, "]\n");
+    fprintf(log_file, "]\n");
 
-  fprintf(log_file, "DATA_BLOCK_BITMAP: [");
-  for(int i = 0; i < myfs_data->NUM_DATA_BLOCKS; ++i) {
-    bool b = myfs_data->data_block_bitmap[i];
-    fprintf(log_file, "%d", b);
-    if (i != myfs_data->NUM_DATA_BLOCKS - 1) {
-      fprintf(log_file, ", ");
+    fprintf(log_file, "DATA_BLOCK_BITMAP: [");
+    for (int i = 0; i < myfs_data->NUM_DATA_BLOCKS; ++i)
+    {
+        bool b = myfs_data->data_block_bitmap[i];
+        fprintf(log_file, "%d", b);
+        if (i != myfs_data->NUM_DATA_BLOCKS - 1)
+        {
+            fprintf(log_file, ", ");
+        }
     }
-  }
-  fprintf(log_file, "]\n");
+    fprintf(log_file, "]\n");
 
-	for(int i = 0; i < myfs_data->NUM_INODES; ++i) {
-		fprintf(log_file, "inode%d: ", i);
-		int num_blocks = myfs_data->inodes[i]->blocks.size();
-		for(int j = 0; j < num_blocks; ++j) {
-			int block_index = myfs_data->inodes[i]->blocks[j];
-			for(int k = 0; k < myfs_data->DATA_BLOCK_SIZE; ++k) {
-				log_char(myfs_data->data_blocks[block_index]->data[k]);
-			}
-		}
-		fprintf(log_file, "\n");
-	}
-
+    for (int i = 0; i < myfs_data->NUM_INODES; ++i)
+    {
+        fprintf(log_file, "inode%d: ", i);
+        int num_blocks = myfs_data->inodes[i]->blocks.size();
+        for (int j = 0; j < num_blocks; ++j)
+        {
+            int block_index = myfs_data->inodes[i]->blocks[j];
+            for (int k = 0; k < myfs_data->DATA_BLOCK_SIZE; ++k)
+            {
+                log_char(myfs_data->data_blocks[block_index]->data[k]);
+            }
+        }
+        fprintf(log_file, "\n");
+    }
 }
 
 // DO NOT CHANGE
-void log_msg(const char *format, ...) {
+void log_msg(const char *format, ...)
+{
     // takes a format string and a variable number of arguments
     va_list ap;
     va_start(ap, format);
@@ -95,14 +109,16 @@ void log_msg(const char *format, ...) {
     vfprintf(MYFS_DATA->logfile, format, ap);
 }
 
-static void myfs_fullpath(char fpath[PATH_MAX], const char *path) {
+static void myfs_fullpath(char fpath[PATH_MAX], const char *path)
+{
     struct fuse_context *temp = fuse_get_context();
 
     strcpy(fpath, MYFS_DATA->rootdir);
     strncat(fpath, path, PATH_MAX);
 }
 
-static int myfs_unlink(const char *path) {
+static int myfs_unlink(const char *path)
+{
     int res;
     char fpath[PATH_MAX];
     myfs_fullpath(fpath, path);
@@ -110,7 +126,8 @@ static int myfs_unlink(const char *path) {
     log_msg("DELETE %s\n", path);
 
     res = unlink(fpath);
-    if (res == -1) {
+    if (res == -1)
+    {
         log_msg("ERROR: DELETE %s\n", path);
         log_fuse_context();
         return -errno;
@@ -119,18 +136,21 @@ static int myfs_unlink(const char *path) {
     // Get the inode index of the file
     int inode_index = -1;
     // use path_to_inode map to get the inode index
-    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end()) {
+    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end())
+    {
         inode_index = MYFS_DATA->path_to_inode[path];
     }
 
-    if (inode_index == -1) {
+    if (inode_index == -1)
+    {
         log_msg("ERROR: INODE NOT FOUND\n");
         log_fuse_context();
         return -1;
     }
 
     // free the data blocks of the file
-    for (int i = 0; i < MYFS_DATA->inodes[inode_index]->blocks.size(); i++) {
+    for (int i = 0; i < MYFS_DATA->inodes[inode_index]->blocks.size(); i++)
+    {
         int block_index = MYFS_DATA->inodes[inode_index]->blocks[i];
         MYFS_DATA->data_block_bitmap[block_index] = false;
         // memset(MYFS_DATA->data_blocks[block_index]->data, 0,
@@ -148,8 +168,8 @@ static int myfs_unlink(const char *path) {
     MYFS_DATA->inode_bitmap[inode_index] = false;
     MYFS_DATA->path_to_inode.erase(path);
 
-	// Clear the inode
-	MYFS_DATA->inodes[inode_index] = new inode();
+    // Clear the inode
+    MYFS_DATA->inodes[inode_index] = new inode();
 
     log_fuse_context();
 
@@ -157,7 +177,8 @@ static int myfs_unlink(const char *path) {
 }
 
 static int myfs_create(const char *path, mode_t mode,
-                       struct fuse_file_info *fi) {
+                       struct fuse_file_info *fi)
+{
     int res;
     char fpath[PATH_MAX];
     myfs_fullpath(fpath, path);
@@ -167,8 +188,10 @@ static int myfs_create(const char *path, mode_t mode,
     // Add code to allocate an inode and data block for the new file
     int inode_index = -1;
 
-    for (int i = 0; i < MYFS_DATA->NUM_INODES; i++) {
-        if (!MYFS_DATA->inode_bitmap[i]) {
+    for (int i = 0; i < MYFS_DATA->NUM_INODES; i++)
+    {
+        if (!MYFS_DATA->inode_bitmap[i])
+        {
             inode_index = i;
             break;
         }
@@ -181,7 +204,8 @@ static int myfs_create(const char *path, mode_t mode,
     // 	}
     // }
 
-    if (inode_index == -1) {
+    if (inode_index == -1)
+    {
         log_msg("ERROR: INODES FULL\n");
         log_fuse_context();
         return -1;
@@ -202,7 +226,8 @@ static int myfs_create(const char *path, mode_t mode,
     //    }
 
     res = open(fpath, fi->flags, mode);
-    if (res == -1) {
+    if (res == -1)
+    {
         log_msg("ERROR: CREATE %s\n", path);
         log_fuse_context();
         return -errno;
@@ -216,7 +241,8 @@ static int myfs_create(const char *path, mode_t mode,
 }
 
 static int myfs_read(const char *path, char *buf, size_t size, off_t offset,
-                     struct fuse_file_info *fi) {
+                     struct fuse_file_info *fi)
+{
     int fd;
     int res;
     char fpath[PATH_MAX];
@@ -229,14 +255,16 @@ static int myfs_read(const char *path, char *buf, size_t size, off_t offset,
     else
         fd = fi->fh;
 
-    if (fd == -1) {
+    if (fd == -1)
+    {
         log_msg("ERROR: READ %s\n", path);
         log_fuse_context();
         return -errno;
     }
 
     res = pread(fd, buf, size, offset);
-    if (res == -1) {
+    if (res == -1)
+    {
         log_msg("ERROR: READ %s\n", path);
         return -errno;
     }
@@ -244,21 +272,29 @@ static int myfs_read(const char *path, char *buf, size_t size, off_t offset,
     // Get the inode index of the file
     int inode_index = -1;
     // use path_to_inode map to get the inode index
-    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end()) {
+    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end())
+    {
         inode_index = MYFS_DATA->path_to_inode[path];
     }
 
-    if (inode_index == -1) {
+    if (inode_index == -1)
+    {
         log_msg("ERROR: INODE NOT FOUND\n");
         log_fuse_context();
         return -1;
     }
 
     // read the data blocks of the file
-    for (int i = 0; i < MYFS_DATA->inodes[inode_index]->blocks.size(); i++) {
+    for (int i = 0; i < MYFS_DATA->inodes[inode_index]->blocks.size(); i++)
+    {
         int block_index = MYFS_DATA->inodes[inode_index]->blocks[i];
-        log_msg("DATA BLOCK %d: %s\n", block_index,
-                MYFS_DATA->data_blocks[block_index]->data);
+
+        log_msg("DATA BLOCK %d: ", block_index);
+        for (int k = 0; k < strlen(MYFS_DATA->data_blocks[block_index]->data); ++k)
+        {
+            log_char(MYFS_DATA->data_blocks[block_index]->data[k]);
+        }
+        log_msg("\n");
     }
 
     if (fi == NULL)
@@ -270,7 +306,8 @@ static int myfs_read(const char *path, char *buf, size_t size, off_t offset,
 }
 
 static int myfs_write(const char *path, const char *buf, size_t size,
-                      off_t offset, struct fuse_file_info *fi) {
+                      off_t offset, struct fuse_file_info *fi)
+{
     int fd;
     int res;
     char fpath[PATH_MAX];
@@ -284,71 +321,83 @@ static int myfs_write(const char *path, const char *buf, size_t size,
     else
         fd = fi->fh;
 
-    if (fd == -1) {
+    if (fd == -1)
+    {
         log_msg("ERROR: WRITE %s\n", path);
         log_fuse_context();
         return -errno;
     }
 
-	int offt = 0;
-	// Try using the last data block if it exists
-	int inode_index = -1;
-	if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end()) {
-		inode_index = MYFS_DATA->path_to_inode[path];
-	}
-	if (inode_index == -1) {
-		log_msg("ERROR: INODE NOT FOUND\n");
-		log_fuse_context();
-		return -1;
-	}
+    int offt = 0;
+    // Try using the last data block if it exists
+    int inode_index = -1;
+    if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end())
+    {
+        inode_index = MYFS_DATA->path_to_inode[path];
+    }
+    if (inode_index == -1)
+    {
+        log_msg("ERROR: INODE NOT FOUND\n");
+        log_fuse_context();
+        return -1;
+    }
 
-	if (MYFS_DATA->inodes[inode_index]->blocks.size() > 0) {
-		int last_block_index = MYFS_DATA->inodes[inode_index]->blocks.back();
-		if (MYFS_DATA->data_block_bitmap[last_block_index]) {
-			int remaining_space = MYFS_DATA->DATA_BLOCK_SIZE - strlen(MYFS_DATA->data_blocks[last_block_index]->data);
-			strncpy(MYFS_DATA->data_blocks[last_block_index]->data + strlen(MYFS_DATA->data_blocks[last_block_index]->data), buf + offt, remaining_space);
-			offt += remaining_space;
-		}
-	}
-	std::vector<int> to_use_blocks;
+    if (MYFS_DATA->inodes[inode_index]->blocks.size() > 0)
+    {
+        int last_block_index = MYFS_DATA->inodes[inode_index]->blocks.back();
+        if (MYFS_DATA->data_block_bitmap[last_block_index])
+        {
+            int remaining_space = MYFS_DATA->DATA_BLOCK_SIZE - strlen(MYFS_DATA->data_blocks[last_block_index]->data);
+            strncpy(MYFS_DATA->data_blocks[last_block_index]->data + strlen(MYFS_DATA->data_blocks[last_block_index]->data), buf + offt, remaining_space);
+            offt += remaining_space;
+        }
+    }
+    std::vector<int> to_use_blocks;
 
-	int num_blocks = (size - offt) / MYFS_DATA->DATA_BLOCK_SIZE + ((size - offt) % MYFS_DATA->DATA_BLOCK_SIZE > 0);
-	for (int i = 0; i < num_blocks; i++) {
-		int data_block_index = -1;
-		for (int j = 0; j < MYFS_DATA->NUM_DATA_BLOCKS; j++) {
-			if (!MYFS_DATA->data_block_bitmap[j]) {
-				data_block_index = j;
-				break;
-			}
-		}
-		if (data_block_index == -1) {
-			// Free the blocks we were supposed to use
-			for (int k = 0; k < to_use_blocks.size(); k++) {
-				MYFS_DATA->data_block_bitmap[to_use_blocks[k]] = false;
-			}
-			log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
-			log_fuse_context();
+    int num_blocks = (size - offt) / MYFS_DATA->DATA_BLOCK_SIZE + ((size - offt) % MYFS_DATA->DATA_BLOCK_SIZE > 0);
+    for (int i = 0; i < num_blocks; i++)
+    {
+        int data_block_index = -1;
+        for (int j = 0; j < MYFS_DATA->NUM_DATA_BLOCKS; j++)
+        {
+            if (!MYFS_DATA->data_block_bitmap[j])
+            {
+                data_block_index = j;
+                break;
+            }
+        }
+        if (data_block_index == -1)
+        {
+            // Free the blocks we were supposed to use
+            for (int k = 0; k < to_use_blocks.size(); k++)
+            {
+                MYFS_DATA->data_block_bitmap[to_use_blocks[k]] = false;
+            }
+            log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
+            log_fuse_context();
 
-			return -1;
-		}
-		to_use_blocks.push_back(data_block_index);
-		MYFS_DATA->data_block_bitmap[data_block_index] = true;
-	}
-	int current_block_index = 0;
-	while (current_block_index < to_use_blocks.size()) {
-		int data_block_index = to_use_blocks[current_block_index];
-    	MYFS_DATA->data_block_bitmap[data_block_index] = true;
-		strncpy(MYFS_DATA->data_blocks[data_block_index]->data, buf + offt, MYFS_DATA->DATA_BLOCK_SIZE);
+            return -1;
+        }
+        to_use_blocks.push_back(data_block_index);
+        MYFS_DATA->data_block_bitmap[data_block_index] = true;
+    }
+    int current_block_index = 0;
+    while (current_block_index < to_use_blocks.size())
+    {
+        int data_block_index = to_use_blocks[current_block_index];
+        MYFS_DATA->data_block_bitmap[data_block_index] = true;
+        strncpy(MYFS_DATA->data_blocks[data_block_index]->data, buf + offt, MYFS_DATA->DATA_BLOCK_SIZE);
 
-		// Add to the inode
-		MYFS_DATA->inodes[inode_index]->blocks.push_back(data_block_index);
+        // Add to the inode
+        MYFS_DATA->inodes[inode_index]->blocks.push_back(data_block_index);
 
-    	offt += MYFS_DATA->DATA_BLOCK_SIZE;
-		current_block_index++;
+        offt += MYFS_DATA->DATA_BLOCK_SIZE;
+        current_block_index++;
     }
 
     res = pwrite(fd, buf, size, offset);
-    if (res == -1) {
+    if (res == -1)
+    {
         log_msg("ERROR: WRITE %s\n", path);
         log_fuse_context();
         return -errno;
@@ -362,7 +411,8 @@ static int myfs_write(const char *path, const char *buf, size_t size,
     return res;
 }
 
-static void *myfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
+static void *myfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
+{
     (void)conn;
     cfg->use_ino = 1;
     cfg->entry_timeout = 0;
@@ -373,7 +423,8 @@ static void *myfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
 }
 
 static int myfs_getattr(const char *path, struct stat *stbuf,
-                        struct fuse_file_info *fi) {
+                        struct fuse_file_info *fi)
+{
     (void)fi;
     int res;
     char fpath[PATH_MAX];
@@ -388,7 +439,8 @@ static int myfs_getattr(const char *path, struct stat *stbuf,
 
 static int myfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *fi,
-                        enum fuse_readdir_flags flags) {
+                        enum fuse_readdir_flags flags)
+{
     DIR *dp;
     struct dirent *de;
 
@@ -403,7 +455,8 @@ static int myfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     if (dp == NULL)
         return -errno;
 
-    while ((de = readdir(dp)) != NULL) {
+    while ((de = readdir(dp)) != NULL)
+    {
         struct stat st;
         memset(&st, 0, sizeof(st));
         st.st_ino = de->d_ino;
@@ -417,7 +470,8 @@ static int myfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return 0;
 }
 
-static int myfs_mkdir(const char *path, mode_t mode) {
+static int myfs_mkdir(const char *path, mode_t mode)
+{
     int res;
     char fpath[PATH_MAX];
     myfs_fullpath(fpath, path);
@@ -429,7 +483,8 @@ static int myfs_mkdir(const char *path, mode_t mode) {
     return 0;
 }
 
-static int myfs_rmdir(const char *path) {
+static int myfs_rmdir(const char *path)
+{
     int res;
     char fpath[PATH_MAX];
     myfs_fullpath(fpath, path);
@@ -441,7 +496,8 @@ static int myfs_rmdir(const char *path) {
     return 0;
 }
 
-static int myfs_open(const char *path, struct fuse_file_info *fi) {
+static int myfs_open(const char *path, struct fuse_file_info *fi)
+{
     int res;
 
     char fpath[PATH_MAX];
@@ -457,7 +513,8 @@ static int myfs_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int myfs_release(const char *path, struct fuse_file_info *fi) {
+static int myfs_release(const char *path, struct fuse_file_info *fi)
+{
     (void)path;
     close(fi->fh);
     return 0;
@@ -477,14 +534,16 @@ static const struct fuse_operations myfs_oper = {
     .create = myfs_create,
 };
 
-void myfs_usage() {
+void myfs_usage()
+{
     fprintf(stderr,
             "usage:  myfs [FUSE and mount options] mount_point log_file "
             "root_dir num_inodes num_data_blocks data_block_size\n");
     abort();
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     int fuse_stat;
     struct myfs_state *myfs_data;
 
@@ -497,7 +556,8 @@ int main(int argc, char *argv[]) {
     // and refuse if it is.  The somewhat smaller hole of an ordinary
     // user doing it with the allow_other flag is still there because
     // I don't want to parse the options string.
-    if ((getuid() == 0) || (geteuid() == 0)) {
+    if ((getuid() == 0) || (geteuid() == 0))
+    {
         fprintf(stderr,
                 "Running BBFS as root opens unnacceptable security holes\n");
         return 1;
