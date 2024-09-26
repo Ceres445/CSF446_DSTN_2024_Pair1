@@ -328,7 +328,8 @@ static int myfs_write(const char *path, const char *buf, size_t size,
         return -errno;
     }
 
-    int offt = 0;
+    // Total number of blocks required by the write
+    int num_blocks = (size + offset) / MYFS_DATA->DATA_BLOCK_SIZE + ((size + offset) % MYFS_DATA->DATA_BLOCK_SIZE > 0);
     // Try using the last data block if it exists
     int inode_index = -1;
     if (MYFS_DATA->path_to_inode.find(path) != MYFS_DATA->path_to_inode.end())
@@ -341,71 +342,76 @@ static int myfs_write(const char *path, const char *buf, size_t size,
         log_fuse_context();
         return -1;
     }
-    int last_block_index = offset / MYFS_DATA->DATA_BLOCK_SIZE; //->inodes[inode_index]->blocks.back();
 
-    if (MYFS_DATA->inodes[inode_index]->blocks.size() > 0)
-    {
-        if (MYFS_DATA->data_block_bitmap[last_block_index])
-        {
-            int block_offset = offset % MYFS_DATA->DATA_BLOCK_SIZE;
-            int remaining_space = MYFS_DATA->DATA_BLOCK_SIZE - block_offset;
-            strncpy(MYFS_DATA->data_blocks[last_block_index]->data + block_offset, buf + offt, remaining_space);
-            offt += remaining_space;
-        }
-    }
     std::vector<int> to_use_blocks;
 
-    int num_blocks = (size - offt) / MYFS_DATA->DATA_BLOCK_SIZE + ((size - offt) % MYFS_DATA->DATA_BLOCK_SIZE > 0);
-    for (int i = 0; i < num_blocks; i++)
+    if (num_blocks > MYFS_DATA->inodes[inode_index]->blocks.size())
     {
-        int data_block_index = last_block_index + (MYFS_DATA->data_block_bitmap[last_block_index]) + i;
-        if (data_block_index > MYFS_DATA->NUM_DATA_BLOCKS)
+        // We require more blocks than the file currently has
+        for (int i = 0; i < num_blocks - MYFS_DATA->inodes[inode_index]->blocks.size(); i++)
         {
-            to_use_blocks.clear();
-            log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
-            log_fuse_context();
+            // Iterate through the datablock bitmap and find the first available block
+            int data_block_index = -1;
+            for (int j = 0; j < MYFS_DATA->NUM_DATA_BLOCKS; j++)
+            {
+                if (!MYFS_DATA->data_block_bitmap[j])
+                {
+                    data_block_index = j;
+                    break;
+                }
+            }
+            if (data_block_index == -1)
+            {
+                log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
+                for (int j = 0; j < to_use_blocks.size(); j++)
+                {
+                    MYFS_DATA->data_block_bitmap[to_use_blocks[j]] = false;
+                }
+                log_fuse_context();
 
-            return -1;
+                return -1;
+            }
+            MYFS_DATA->data_block_bitmap[data_block_index] = true;
+            to_use_blocks.push_back(data_block_index);
         }
-        // for (int j = ; j < MYFS_DATA->NUM_DATA_BLOCKS; j++)
-        // {
-        //     if (!MYFS_DATA->data_block_bitmap[j])
-        //     {
-        //         data_block_index = j;
-        //         break;
-        //     }
-        // }
-        // if (data_block_index == -1)
-        // {
-        //     // Free the blocks we were supposed to use
-        //     for (int k = 0; k < to_use_blocks.size(); k++)
-        //     {
-        //         MYFS_DATA->data_block_bitmap[to_use_blocks[k]] = false;
-        //     }
-        //     log_msg("ERROR: NOT ENOUGH DATA BLOCKS\n");
-        //     log_fuse_context();
-
-        //     return -1;
-        // }
-        to_use_blocks.push_back(data_block_index);
-        // MYFS_DATA->data_block_bitmap[data_block_index] = true;
     }
-    int current_block_index = 0;
-    while (current_block_index < to_use_blocks.size())
+
+    // We have enough blocks overall
+    // append to_use_blocks to the end of the inode's blocks
+    for (int i = 0; i < to_use_blocks.size(); i++)
     {
-        int data_block_index = to_use_blocks[current_block_index];
-        if (!MYFS_DATA->data_block_bitmap[data_block_index])
+        MYFS_DATA->inodes[inode_index]->blocks.push_back(to_use_blocks[i]);
+    }
+
+    int offt = 0; // To remember how much of the buffer has been written
+    // num_blocks = (size ) / MYFS_DATA->DATA_BLOCK_SIZE + ((size) % MYFS_DATA->DATA_BLOCK_SIZE > 0);
+    int current_block = offset / MYFS_DATA->DATA_BLOCK_SIZE; //->inodes[inode_index]->blocks.back();
+    // fprintf(MYFS_DATA->logfile, "start block: %d offset: %d db size: %d\n", start_block, offset, MYFS_DATA->DATA_BLOCK_SIZE);
+    offset = offset % MYFS_DATA->DATA_BLOCK_SIZE;
+    // Write first block with offset
+    if (current_block == num_blocks - 1)
+    {
+        strncpy((MYFS_DATA->data_blocks[MYFS_DATA->inodes[inode_index]->blocks[current_block]]->data + offset), buf, size - offt);
+        offt = size;
+    }
+    else
+    {
+        strncpy((MYFS_DATA->data_blocks[MYFS_DATA->inodes[inode_index]->blocks[current_block]]->data + offset), buf, MYFS_DATA->DATA_BLOCK_SIZE - offset);
+        offt += MYFS_DATA->DATA_BLOCK_SIZE - offset;
+    }
+    while (++current_block < num_blocks)
+    {
+        int data_block_index = MYFS_DATA->inodes[inode_index]->blocks[current_block];
+        // check if last block
+        if (current_block == num_blocks - 1)
         {
-            MYFS_DATA->inodes[inode_index]->blocks.push_back(data_block_index);
+            strncpy(MYFS_DATA->data_blocks[data_block_index]->data, buf + offt, size - offt);
         }
-
-        MYFS_DATA->data_block_bitmap[data_block_index] = true;
-        strncpy(MYFS_DATA->data_blocks[data_block_index]->data, buf + offt, MYFS_DATA->DATA_BLOCK_SIZE);
-
-        // Add to the inode
-
+        else
+        {
+            strncpy(MYFS_DATA->data_blocks[data_block_index]->data, buf + offt, MYFS_DATA->DATA_BLOCK_SIZE);
+        }
         offt += MYFS_DATA->DATA_BLOCK_SIZE;
-        current_block_index++;
     }
 
     res = pwrite(fd, buf, size, offset);
