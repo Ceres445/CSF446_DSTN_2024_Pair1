@@ -1,14 +1,16 @@
 package app;
 
+import com.google.gson.Gson;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.Topology;
-import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -20,6 +22,7 @@ import java.util.UUID;
 public class CardStreamProcessor {
 
     private boolean inDocker = new File("/.dockerenv").exists();
+    private static final Gson gson = new Gson();
 
     /**
      * Builds the Kafka Streams topology for processing card streams. The topology reads from the input
@@ -30,9 +33,30 @@ public class CardStreamProcessor {
      * @return the Kafka Streams topology for processing card objects
      */
     public Topology buildTopology(String inputTopic, String outputTopic) {
-        // WRITE CODE HERE
+        StreamsBuilder builder = new StreamsBuilder();
 
-        return null;
+        // Create a stream from the input topic
+        KStream<String, String> inputStream = builder.stream(inputTopic);
+
+        // Group by card JSON and create sliding windows
+        KStream<Windowed<String>, Long> counts = inputStream
+                .groupBy((key, value) -> value)
+                .windowedBy(SlidingWindows.ofTimeDifferenceWithNoGrace(Duration.ofMillis(30)))
+                .count()
+                .toStream();
+
+        // Flag cards when they first appear as duplicates
+        KStream<String, String> flaggedCards = counts
+                .filter((windowedKey, count) -> count == 2)  // Only when count exactly equals 2
+                .map((windowedKey, count) -> {
+                    String cardJson = windowedKey.key();
+                    return KeyValue.pair(cardJson, cardJson);
+                });
+
+        // Write to output topic
+        flaggedCards.to(outputTopic);
+
+        return builder.build();
     }
 
     /**
@@ -43,9 +67,8 @@ public class CardStreamProcessor {
      * @return a KafkaStreams instance ready to start processing streams
      */
     public KafkaStreams createKafkaStreams(Topology topology, Properties props) {
-        // WRITE CODE HERE
-
-        return null;
+        // Create and return a new KafkaStreams instance with the topology and properties
+        return new KafkaStreams(topology, props);
     }
 
     /**
@@ -58,7 +81,7 @@ public class CardStreamProcessor {
     private Properties getProperties() throws IOException { // DONT CHANGE
         Properties props = new Properties();
         try (InputStream stream =
-                     CardStreamProcessorSolution.class.getClassLoader().getResourceAsStream("streams.properties")) {
+                     CardStreamProcessor.class.getClassLoader().getResourceAsStream("streams.properties")) {
 
             props.load(stream);
 
