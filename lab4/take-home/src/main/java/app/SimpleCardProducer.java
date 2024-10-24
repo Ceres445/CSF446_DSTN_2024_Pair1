@@ -3,12 +3,15 @@ package app;
 import com.google.gson.Gson;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.Future;
 
 /**
  * SimpleCardProducer is a class responsible for producing card data to a Kafka topic.
@@ -20,7 +23,7 @@ public class SimpleCardProducer {
     private final boolean inDocker = new File("/.dockerenv").exists(); // DONT CHANGE
 
     private final Producer<String, String> producer; // DONT CHANGE
-
+    private final Gson gson = new Gson(); // Add Gson instance for JSON serialization
     /**
      * Default constructor that initializes the Kafka producer using properties.
      */
@@ -68,6 +71,25 @@ public class SimpleCardProducer {
      */
     public void produceCard(Card card, String topic) {
         // WRITE CODE HERE
+        try {
+            String cardJson = gson.toJson(card);
+            ProducerRecord<String, String> record = new ProducerRecord<>(
+                    topic,
+                    String.valueOf(card.id),  // Use card id as key
+                    cardJson
+            );
+
+            Future<RecordMetadata> future = producer.send(record, (metadata, exception) -> {
+                if (exception != null) {
+                    System.err.println("Error producing card: " + exception.getMessage());
+                } else {
+                    System.out.printf("Produced card %d to topic %s partition %d offset %d%n",
+                            card.id, metadata.topic(), metadata.partition(), metadata.offset());
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Error serializing/producing card: " + e.getMessage());
+        }
     }
 
     /**
@@ -79,6 +101,26 @@ public class SimpleCardProducer {
      */
     public void produceCard(Card card, String topic, int partition) {
         // WRITE CODE HERE
+        try {
+            String cardJson = gson.toJson(card);
+            ProducerRecord<String, String> record = new ProducerRecord<>(
+                    topic,
+                    partition,
+                    String.valueOf(card.id),  // Use card id as key
+                    cardJson
+            );
+
+            Future<RecordMetadata> future = producer.send(record, (metadata, exception) -> {
+                if (exception != null) {
+                    System.err.println("Error producing card to partition " + partition + ": " + exception.getMessage());
+                } else {
+                    System.out.printf("Produced card %d to topic %s partition %d offset %d%n",
+                            card.id, metadata.topic(), metadata.partition(), metadata.offset());
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Error serializing/producing card to partition " + partition + ": " + e.getMessage());
+        }
     }
 
 
@@ -90,6 +132,9 @@ public class SimpleCardProducer {
      */
     public void produceCards(List<Card> cards, String topic) {
         // WRITE CODE HERE
+        for(Card card: cards) {
+            produceCard(card, topic);
+        }
     }
 
     /**
@@ -97,6 +142,7 @@ public class SimpleCardProducer {
      */
     public void flush() {
         // WRITE CODE HERE
+        producer.flush();
     }
 
     /**
@@ -104,6 +150,12 @@ public class SimpleCardProducer {
      */
     public void close() {
         // WRITE CODE HERE
+        try {
+            flush();
+            producer.close();
+        } catch (Exception e) {
+            System.err.println("Error closing producer: " + e.getMessage());
+        }
     }
 
 

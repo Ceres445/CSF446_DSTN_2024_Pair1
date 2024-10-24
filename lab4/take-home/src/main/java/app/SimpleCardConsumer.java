@@ -2,11 +2,13 @@ package app;
 
 import com.google.gson.Gson;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.errors.WakeupException;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 
 /**
@@ -21,6 +23,7 @@ public class SimpleCardConsumer {
     private final List<Card> consumedCards = new ArrayList<>(); // DONT CHANGE
 
     private final Consumer<String, String> consumer; // DONT CHANGE
+    private final Gson gson = new Gson(); // Add Gson instance for JSON deserialization
 
 
     /**
@@ -73,9 +76,36 @@ public class SimpleCardConsumer {
     public void consumeCards(String topic) {
 
         try {
+            // Subscribe to the topic
+            consumer.subscribe(Collections.singletonList(topic));
+            System.out.printf("Subscribed to topic: %s%n", topic);
             while (true) {
+                // Poll for new records with a timeout
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
 
+                // Process each record
+                records.forEach(record -> {
+                    try {
+                        // Deserialize the JSON string to Card object
+                        Card card = gson.fromJson(record.value(), Card.class);
 
+                        // Add to the consumed cards list
+                        synchronized (consumedCards) {
+                            consumedCards.add(card);
+                        }
+
+                        System.out.printf("Consumed card -> Key: %s, Card: %s, Topic: %s, Partition: %d, Offset: %d%n",
+                                record.key(), card, record.topic(), record.partition(), record.offset());
+                    } catch (Exception e) {
+                        System.err.printf("Error processing record: %s, Error: %s%n",
+                                record.value(), e.getMessage());
+                    }
+                });
+
+                // Commit offsets if needed (if enable.auto.commit=false in properties)
+                if (!Boolean.parseBoolean(consumer.groupMetadata().groupId())) {
+                    consumer.commitSync();
+                }
             }
         } catch (WakeupException e) { // DONT CHANGE
             System.out.println("Shutting down...");
@@ -89,6 +119,17 @@ public class SimpleCardConsumer {
      */
     public void close() {
         // WRITE CODE HERE
+        try {
+            // Commit final offsets if needed
+            consumer.commitSync();
+        } finally {
+            try {
+                consumer.close();
+                System.out.println("Consumer closed successfully");
+            } catch (Exception e) {
+                System.err.println("Error closing consumer: " + e.getMessage());
+            }
+        }
     }
 
     /**
